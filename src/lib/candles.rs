@@ -109,8 +109,21 @@ impl CandleList {
             if c.is_valid() {
                 final_candles.push(*c)
             } else {
-                if i != candles.len() && candles[i + 1].is_valid() {
-                    final_candles.push(candles[i + 1])
+                // should be setting all values to previous candles close
+                if i != candles.len()
+                    && i != 0
+                    && candles[i - 1].is_valid()
+                    && candles[i + 1].is_valid()
+                {
+                    let prev = &candles[i + 1];
+                    final_candles.push(OHLC {
+                        open_time: None,
+                        open: prev.close,
+                        high: prev.high,
+                        low: prev.low,
+                        close: prev.close,
+                        close_time: None,
+                    })
                 }
             }
         }

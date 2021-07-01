@@ -63,14 +63,14 @@ fn main() {
 
     // let end_time = Utc::now() - Duration::minutes(3); // for debugging the interval is set low
     let start_time = Utc::now();
-    let duration = Duration::minutes(10);
+    let duration = Duration::minutes(5);
     let historic_prices = match pyth.get_historical_data(px_data.key, start_time, duration) {
         Ok(i) => i,
         Err(e) => panic!("Pyth Err: {}", e),
     };
 
     let candles = candles::get_pyth_candles(&historic_prices, &start_time, px_data.expo);
-    let candles = candles.get_candles(candles::Interval::MIN5);
+    let candles = candles.get_candles(candles::Interval::MIN1);
 
     println!("len: {}", candles.len());
     for (i, c) in candles.iter().enumerate() {
