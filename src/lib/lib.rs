@@ -3,8 +3,8 @@
 #![allow(unused_variables)]
 pub mod candles;
 pub mod pyth;
-use crate::pyth::{PythAccount, PythProduct};
-extern crate reqwest;
+pub mod serum;
+use crate::pyth::{PriceResult, PythAccount, PythData, PythProduct};
 use chrono::prelude::DateTime;
 use chrono::Duration;
 use chrono::Utc;
@@ -22,6 +22,8 @@ use std::time::{Duration as StdDuration, UNIX_EPOCH};
 
 use progress_bar::color::{Color, Style};
 use progress_bar::progress_bar::ProgressBar;
+
+use ureq::{Agent, AgentBuilder};
 
 pub struct PythClient {
     client: RpcClient,
@@ -125,7 +127,7 @@ impl PythClient {
         px_acct: Pubkey,
         start_time: DateTime<Utc>,
         duration: Duration,
-    ) -> Result<Vec<pyth::PriceResult>, &'static str> {
+    ) -> Result<PythData, &'static str> {
         // we can request 1000 sig per req
         let mut last_sig: Option<Signature> = None;
         let mut signature_list: Vec<pyth::PriceResult> = Vec::new();
@@ -203,11 +205,55 @@ impl PythClient {
             return Err("No signatures found");
         }
         println!(""); // progress bar gets in the way
-        Ok(signature_list)
+        Ok(PythData {
+            data: signature_list,
+        })
+    }
+}
+pub struct SerumClient {
+    pub client: Agent,
+}
+impl SerumClient {
+    pub fn new() -> Self {
+        let agent: Agent = ureq::AgentBuilder::new()
+            .timeout_read(StdDuration::from_secs(5))
+            .timeout_write(StdDuration::from_secs(5))
+            .build();
+        Self { client: agent }
+    }
+    pub fn get_markets(&self) -> Vec<String> {
+        let response = match self
+            .client
+            .get("https://serum-api.bonfida.com/pairs")
+            .call()
+        {
+            Ok(i) => i,
+            Err(e) => panic!("Bonfida Err: {}", e),
+        };
+        let markets: serum::GetMarketsResponse = match response.into_json() {
+            Ok(i) => i,
+            Err(e) => panic!("Bonfida Err: {}", e),
+        };
+        markets.data
+    }
+    pub fn get_trades(&self, symbol: &String) -> Option<serum::SerumData> {
+        let q = format!("https://serum-api.bonfida.com/trades/{}", symbol);
+        let response = match self.client.get(&q).call() {
+            Ok(i) => i,
+            Err(e) => panic!("Bonfida Err: {}", e),
+        };
+        let trades: serum::MarketResponse = match response.into_json() {
+            Ok(i) => i,
+            Err(e) => panic!("Bonfida Err: {}", e),
+        };
+        if !trades.success {
+            return None;
+        }
+        Some(serum::SerumData { data: trades.data })
     }
 }
 
-fn utc_to_datetime(t: i64) -> DateTime<Utc> {
+pub fn utc_to_datetime(t: i64) -> DateTime<Utc> {
     let t = UNIX_EPOCH + StdDuration::from_secs(t as u64);
     let t = DateTime::<Utc>::from(t);
     t

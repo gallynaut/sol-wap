@@ -1,3 +1,8 @@
+use super::candles::{CandleList, OHLC};
+use super::utc_to_datetime;
+use arr_macro::arr;
+use chrono::prelude::DateTime;
+use chrono::Utc;
 use pyth_client::{
     AccountType, Mapping, Price, PriceStatus, PriceType, Product, MAGIC, PROD_HDR_SIZE, VERSION_2,
 };
@@ -5,8 +10,9 @@ use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::fmt;
+use std::fs::File;
+use std::io::Write;
 use std::str::FromStr;
-
 #[repr(C)]
 pub struct UpdatePriceInstruction {
     pub version: u32,
@@ -155,11 +161,6 @@ where
     return val;
 }
 
-pub fn print_products(products: &Vec<ProductResult>) {
-    for p in products.iter() {
-        println!("{:10} - {}", p.name, p.key)
-    }
-}
 pub fn find_product(products: &Vec<ProductResult>, s: String) -> Option<[u8; 32]> {
     for p in products.iter() {
         if p.name == s {
@@ -171,4 +172,106 @@ pub fn find_product(products: &Vec<ProductResult>, s: String) -> Option<[u8; 32]
         "https://pyth.network/markets/"
     );
     None
+}
+pub struct PythData {
+    pub data: Vec<PriceResult>,
+}
+impl PythData {
+    pub fn get_pyth_candles(&self, start: &DateTime<Utc>, expo: i32) -> CandleList {
+        let mut candle_data: [Vec<PriceResult>; 1440] = arr![Vec::new(); 1440];
+        let interval = chrono::Duration::seconds(60).num_seconds();
+        let start = start.timestamp();
+        let mut w = File::create("tmp/test.txt").unwrap();
+        for tx in self.data.iter() {
+            //
+            // builds index and stores pyth transactions in vectors representing 1 min of data
+            // reverses order of candle so earliest price is 0 index
+            //
+            let i = (start - tx.block_time) / interval;
+            let i = candle_data.len() - 1 - i as usize;
+            // println!("{}: {:?}", i, utc_to_datetime(tx.block_time));
+            let line = format!("{}\t{}\t{}\n", i, utc_to_datetime(tx.block_time), tx.price);
+            w.write(line.as_bytes()).unwrap();
+            candle_data[i].push(tx.clone());
+        }
+
+        let mut candles = [OHLC::new(); 1440];
+        for (i, c) in candle_data.iter().enumerate() {
+            if i == 1435 {
+                println!("CCCC: {:?}", c);
+            }
+            let mut candle = make_pyth_candle(c, expo);
+            if !candle.is_valid() {
+                if i != 0 && candles[i - 1].is_valid() {
+                    //
+                    //  if no data set fields to prev candles close price
+                    //
+                    candle = OHLC {
+                        open_time: None,
+                        open: candles[i - 1].close,
+                        high: candles[i - 1].close,
+                        low: candles[i - 1].close,
+                        close: candles[i - 1].close,
+                        close_time: None,
+                    }
+                }
+            }
+            //
+            // next candles open price should equal prev candles close price
+            //
+            if i != 0 {
+                candle.open = candles[i - 1].close;
+            }
+            candles[i] = candle
+        }
+        return CandleList::new(candles);
+    }
+}
+fn make_pyth_candle(transactions: &Vec<PriceResult>, expo: i32) -> OHLC {
+    if transactions.len() == 0 {
+        return OHLC::new();
+    }
+
+    let mut open_time: Option<i64> = None;
+    let mut open: Option<i64> = None;
+    let mut high: Option<i64> = None;
+    let mut low: Option<i64> = None;
+    let mut close_time: Option<i64> = None;
+    let mut close: Option<i64> = None;
+
+    for txn in transactions.iter() {
+        if low == None || low.unwrap() > txn.price {
+            low = Some(txn.price)
+        }
+        if high == None || high.unwrap() < txn.price {
+            high = Some(txn.price)
+        }
+        if open_time == None || open_time.unwrap() > txn.block_time {
+            open_time = Some(txn.block_time);
+            open = Some(txn.price);
+        }
+        if close_time == None || close_time.unwrap() < txn.block_time {
+            close_time = Some(txn.block_time);
+            close = Some(txn.price);
+        }
+    }
+
+    let base: f64 = 10.0;
+    let scale_factor: f64 = base.powi(expo);
+
+    let open_time = open_time.unwrap() as f64;
+    let open_price = (open.unwrap() as f64) * scale_factor;
+    let high_price = (high.unwrap() as f64) * scale_factor;
+    let low_price = (low.unwrap() as f64) * scale_factor;
+    let close_price = (close.unwrap() as f64) * scale_factor;
+    let close_time = close_time.unwrap() as f64;
+
+    OHLC {
+        open_time: Some(open_time),
+        open: Some(open_price),
+        high: Some(high_price),
+        low: Some(low_price),
+        close: Some(close_price),
+        close_time: Some(close_time),
+    }
 }
