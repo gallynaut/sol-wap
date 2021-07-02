@@ -123,9 +123,9 @@ fn pyth_twap() {
     };
 
     let candles = historic_prices.get_pyth_candles(&start_time, px_data.expo);
-    let candles_1hr = candles.get_candles(&candles::Interval::HR1);
+    let candles_1min = candles.get_candles(&candles::Interval::MIN1);
 
-    // candles::print_candles(&candles_1hr);
+    candles::print_candles(&candles_1min);
 
     let twap = candles.twap(&pyth_candle).unwrap();
     println!("TWAP: ${:.2} using {} candles", twap, &pyth_candle);
@@ -159,8 +159,6 @@ fn serum_twap() {
 
     println!("1 HR");
     candles::print_candles(&candles_1hr);
-    // println!("1MIN");
-    // candles::print_candles(&candles.get_candles(&candles::Interval::MIN1));
 
     let twap = candles.twap(&candle_interval).unwrap();
     println!("TWAP: ${:.2} using {} candles", twap, &candle_interval);

@@ -140,13 +140,11 @@ impl SerumData {
             //
             // next candles open price should equal prev candles close price
             //
-            if i != 0 {
+            if i != 0 && candles[i - 1].close != None {
                 candle.open = candles[i - 1].close;
             }
             candles[i] = candle
         }
-        println!("SERUM");
-        // print_candles(&candles.to_vec());
         return CandleList::new(candles);
     }
 }
@@ -180,11 +178,11 @@ fn make_serum_candle(trades: &Vec<MarketData>) -> OHLC {
     }
 
     OHLC {
-        open_time: open_time,
-        open: open,
-        high: high,
-        low: low,
-        close: close,
-        close_time: close_time,
+        open_time,
+        open,
+        high,
+        low,
+        close,
+        close_time,
     }
 }

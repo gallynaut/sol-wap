@@ -10,8 +10,6 @@ use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::fmt;
-use std::fs::File;
-use std::io::Write;
 use std::str::FromStr;
 #[repr(C)]
 pub struct UpdatePriceInstruction {
@@ -181,7 +179,6 @@ impl PythData {
         let mut candle_data: [Vec<PriceResult>; 1440] = arr![Vec::new(); 1440];
         let interval = chrono::Duration::seconds(60).num_seconds();
         let start = start.timestamp();
-        let mut w = File::create("tmp/test.txt").unwrap();
         for tx in self.data.iter() {
             //
             // builds index and stores pyth transactions in vectors representing 1 min of data
@@ -189,17 +186,11 @@ impl PythData {
             //
             let i = (start - tx.block_time) / interval;
             let i = candle_data.len() - 1 - i as usize;
-            // println!("{}: {:?}", i, utc_to_datetime(tx.block_time));
-            let line = format!("{}\t{}\t{}\n", i, utc_to_datetime(tx.block_time), tx.price);
-            w.write(line.as_bytes()).unwrap();
             candle_data[i].push(tx.clone());
         }
 
         let mut candles = [OHLC::new(); 1440];
         for (i, c) in candle_data.iter().enumerate() {
-            if i == 1435 {
-                println!("CCCC: {:?}", c);
-            }
             let mut candle = make_pyth_candle(c, expo);
             if !candle.is_valid() {
                 if i != 0 && candles[i - 1].is_valid() {
@@ -219,7 +210,7 @@ impl PythData {
             //
             // next candles open price should equal prev candles close price
             //
-            if i != 0 {
+            if i != 0 && candles[i - 1].close != None {
                 candle.open = candles[i - 1].close;
             }
             candles[i] = candle

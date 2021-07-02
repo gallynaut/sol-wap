@@ -65,8 +65,7 @@ pub struct CandleList {
 }
 impl CandleList {
     pub fn new(candles: [OHLC; 1440]) -> Self {
-        // print_candles(&candles.to_vec());
-        Self { candles: candles }
+        Self { candles }
     }
     pub fn get_candles(&self, interval: &Interval) -> Vec<OHLC> {
         let (candle_count, size) = match interval {
@@ -82,7 +81,6 @@ impl CandleList {
             let rng = self.candles[i * candle_count..(i + 1) * candle_count].to_vec();
             candles[i] = self.candle_smasher(rng);
         }
-        // println!("NEW {}: {:?}", interval, candles);
 
         // trim vector and only keep valid candles
         let mut final_candles: Vec<OHLC> = Vec::new();
