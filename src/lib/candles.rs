@@ -184,6 +184,8 @@ impl fmt::Display for Interval {
 
 pub fn print_candles(candles: &Vec<OHLC>) {
     for (i, c) in candles.iter().enumerate() {
-        println!("{:4} - {}", i, c.to_string());
+        if c.is_valid() {
+            println!("{:4} - {}", i, c.to_string());
+        }
     }
 }
