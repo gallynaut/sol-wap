@@ -1,17 +1,14 @@
-#![allow(unused_imports)]
-#![allow(dead_code)]
-#![allow(unused_variables)]
 pub mod candles;
 pub mod pyth;
 pub mod serum;
-use crate::pyth::{PriceResult, PythAccount, PythData, PythProduct};
+use crate::pyth::{PythAccount, PythData, PythProduct};
 use chrono::prelude::DateTime;
 use chrono::Duration;
 use chrono::Utc;
+use progress_bar::color::{Color, Style};
+use progress_bar::progress_bar::ProgressBar;
 use pyth::PriceAccountResult;
-use pyth_client::{
-    AccountType, Mapping, Price, PriceStatus, PriceType, Product, MAGIC, PROD_HDR_SIZE, VERSION_2,
-};
+use pyth_client::{Mapping, Price, Product};
 use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
 use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
@@ -19,11 +16,7 @@ use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
 use std::str::FromStr;
 use std::time::{Duration as StdDuration, UNIX_EPOCH};
-
-use progress_bar::color::{Color, Style};
-use progress_bar::progress_bar::ProgressBar;
-
-use ureq::{Agent, AgentBuilder};
+use ureq::Agent;
 
 pub struct PythClient {
     client: RpcClient,
@@ -177,7 +170,7 @@ impl PythClient {
                     .get_transaction(&s, UiTransactionEncoding::Base64)
                 {
                     Ok(i) => i,
-                    Err(e) => continue,
+                    Err(_) => continue,
                 };
                 let txn = txn.transaction.transaction.decode().unwrap(); // transaction
                 let instrs = txn.message.instructions;
@@ -221,7 +214,7 @@ impl SerumClient {
             .build();
         Self { client: agent }
     }
-    pub fn get_markets(&self) -> Vec<String> {
+    pub fn get_markets(&self) -> Result<Vec<String>, &'static str> {
         let response = match self
             .client
             .get("https://serum-api.bonfida.com/pairs")
@@ -234,7 +227,11 @@ impl SerumClient {
             Ok(i) => i,
             Err(e) => panic!("Bonfida Err: {}", e),
         };
-        markets.data
+        let data = match markets.data {
+            Some(d) => d,
+            None => return Err("invalid market data"),
+        };
+        Ok(data)
     }
     pub fn get_trades(&self, symbol: &String) -> Option<serum::SerumData> {
         let q = format!("https://serum-api.bonfida.com/trades/{}", symbol);

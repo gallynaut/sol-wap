@@ -1,14 +1,10 @@
-use super::candles::{print_candles, CandleList, OHLC};
+use super::candles::{CandleList, OHLC};
 use arr_macro::arr;
 use chrono::prelude::DateTime;
 use chrono::Utc;
 use core::f64;
 use serde::Deserialize;
-use std::process;
-use std::time::Duration;
-use std::time::Duration as StdDuration;
 use std::time::{SystemTime, UNIX_EPOCH};
-use ureq::{Agent, AgentBuilder};
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -87,15 +83,18 @@ impl MarketResponse {
 #[derive(Deserialize, Debug)]
 pub struct GetMarketsResponse {
     pub success: bool,
-    pub data: Vec<String>,
+    pub data: Option<Vec<String>>,
 }
-impl GetMarketsResponse {
-    fn print_markets(&self) {
-        for i in self.data.iter() {
-            println!(" > {}", i);
-        }
-    }
-}
+
+// impl GetMarketsResponse {
+//     fn print_markets(&self) {
+//         if let Some(x) = &self.data {
+//             for i in x.iter() {
+//                 println!(" > {}", i);
+//             }
+//         }
+//     }
+// }
 
 pub struct SerumData {
     pub data: Vec<MarketData>,

@@ -1,17 +1,12 @@
-#![allow(unused_imports)]
-#![allow(dead_code)]
-#![allow(unused_variables)]
-use chrono::prelude::DateTime;
 use chrono::{Duration, Utc};
 use dialoguer::{theme::ColorfulTheme, Input, Select};
-use sol_wap::candles::{self, Interval};
+use sol_wap::candles;
 use sol_wap::pyth;
-// use sol_wap::serum::{self, SerumClient};
 use sol_wap::{PythClient, SerumClient};
+use std::error::Error;
 use std::process;
-use std::time::Duration as StdDuration;
-use ureq::{Agent, AgentBuilder};
-fn main() {
+
+fn main() -> Result<(), Box<dyn Error>> {
     let twap_options = ["Pyth", "Serum"];
     let selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("TWAP Option")
@@ -21,13 +16,14 @@ fn main() {
         .unwrap();
 
     match twap_options[selection] {
-        "Pyth" => pyth_twap(),
-        "Serum" => serum_twap(),
+        "Pyth" => pyth_twap()?,
+        "Serum" => serum_twap()?,
         _ => panic!("Not a valid option"),
-    }
+    };
+    Ok(())
 }
 
-fn pyth_twap() {
+fn pyth_twap() -> Result<(), Box<dyn Error>> {
     let networks = ["Mainnet Beta", "Devnet", "Localnet"];
     let network = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("Network Selection")
@@ -62,10 +58,7 @@ fn pyth_twap() {
         _ => panic!("Not a valid network option"),
     };
 
-    let products = match pyth.get_product_accounts() {
-        Err(e) => panic!("Pyth Err: {}", e),
-        Ok(r) => r,
-    };
+    let products = pyth.get_product_accounts()?;
 
     let selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("Symbol Option")
@@ -130,12 +123,20 @@ fn pyth_twap() {
     let twap = candles.twap(&pyth_candle).unwrap();
     println!("TWAP: ${:.2} using {} candles", twap, &pyth_candle);
     println!("N: {} pyth transactions", historic_prices.data.len());
+    let pyth_duration = Utc::now() - start_time;
+    let (hrs, mins, secs) = (
+        pyth_duration.num_hours(),
+        pyth_duration.num_minutes() % 60,
+        pyth_duration.num_seconds() % 60,
+    );
+    println!("Executed in {}:{}:{}", hrs, mins, secs);
+    Ok(())
 }
 
-fn serum_twap() {
+fn serum_twap() -> Result<(), Box<dyn Error>> {
     let s = SerumClient::new();
 
-    let markets = s.get_markets();
+    let markets = s.get_markets()?;
 
     let selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("Symbol Option")
@@ -163,4 +164,5 @@ fn serum_twap() {
     let twap = candles.twap(&candle_interval).unwrap();
     println!("TWAP: ${:.2} using {} candles", twap, &candle_interval);
     println!("N: {} serum trades", trades.data.len());
+    Ok(())
 }

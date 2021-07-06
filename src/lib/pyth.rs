@@ -1,16 +1,13 @@
 use super::candles::{CandleList, OHLC};
-use super::utc_to_datetime;
 use arr_macro::arr;
 use chrono::prelude::DateTime;
 use chrono::Utc;
 use pyth_client::{
     AccountType, Mapping, Price, PriceStatus, PriceType, Product, MAGIC, PROD_HDR_SIZE, VERSION_2,
 };
-use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::fmt;
-use std::str::FromStr;
 #[repr(C)]
 pub struct UpdatePriceInstruction {
     pub version: u32,
